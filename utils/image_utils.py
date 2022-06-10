@@ -121,7 +121,7 @@ def fig2b64(plt_: plt) -> str:
     return "base64://" + base64_str
 
 
-def is_valid(file: str) -> bool:
+def is_valid(file: Union[str, Path]) -> bool:
     """
     说明：
         判断图片是否损坏
@@ -681,7 +681,10 @@ class BuildImage:
             right, bottom = [(value - offset) * antialias for value in ellipse_box[2:]]
             draw.ellipse([left, top, right, bottom], fill=fill)
         mask = mask.resize(self.markImg.size, Image.LANCZOS)
-        self.markImg.putalpha(mask)
+        try:
+            self.markImg.putalpha(mask)
+        except ValueError:
+            pass
 
     async def acircle_corner(self, radii: int = 30):
         """
@@ -1492,22 +1495,25 @@ async def text2image(
         width = 0
         height = 0
         _tmp = BuildImage(0, 0, font=font, font_size=font_size)
+        _, h = _tmp.getsize("正")
+        line_height = int(font_size / 3)
+        image_list = []
         for x in text.split("\n"):
-            x = x if x.strip() else "正"
-            w, h = _tmp.getsize(x)
-            height += h + _add_height
+            w, _ = _tmp.getsize(x.strip() or "正")
+            height += h + line_height
             width = width if width > w else w
+            image_list.append(BuildImage(w, h, font=font, font_size=font_size, plain_text=x.strip()))
         width += pw
         height += ph
         A = BuildImage(
             width + left_padding,
             height + top_padding + 2,
-            font_size=font_size,
             color=color,
-            font=font,
         )
-        await A.atext((left_padding, top_padding), text, font_color)
-    # A.show()
+        cur_h = ph
+        for img in image_list:
+            await A.apaste(img, (pw, cur_h), True)
+            cur_h += img.h + line_height
     return A
 
 
